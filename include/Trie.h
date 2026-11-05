@@ -11,6 +11,7 @@ class Trie : public Dictionary {
     std::size_t nodeCount = 1;              // root
 
     void collect(Node* n, std::string& cur, std::vector<std::string>& out) const;
+    static void destroy(Node* n);
 
 public:
     Trie();

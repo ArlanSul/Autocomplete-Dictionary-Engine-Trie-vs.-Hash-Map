@@ -2,9 +2,36 @@
 
 Trie::Trie() : root(new Node()) {}
 
-Trie::~Trie() {}
+Trie::~Trie() {
+    destroy(root);
+}
 
-void Trie::insert(const std::string& /*word*/) {}
+// Post-order: free children before the node itself.
+void Trie::destroy(Node* n) {
+    if (!n) return;
+    for (Node* child : n->children) destroy(child);
+    delete n;
+}
+
+void Trie::insert(const std::string& word) {
+    // Words should arrive normalized (a-z only). Reject anything else
+    // before creating nodes, so a bad word leaves no partial path behind.
+    if (word.empty()) return;
+    for (char c : word) {
+        if (c < 'a' || c > 'z') return;
+    }
+
+    Node* cur = root;
+    for (char c : word) {
+        Node*& next = cur->children[c - 'a'];
+        if (!next) {
+            next = new Node();
+            ++nodeCount;
+        }
+        cur = next;
+    }
+    cur->isEnd = true;
+}
 
 bool Trie::contains(const std::string& /*word*/) const {
     return false;
