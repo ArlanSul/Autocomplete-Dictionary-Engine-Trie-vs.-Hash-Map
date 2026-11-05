@@ -1,4 +1,5 @@
 #include "Trie.h"
+#include <algorithm>
 
 Trie::Trie() : root(new Node()) {}
 
@@ -43,12 +44,32 @@ bool Trie::contains(const std::string& word) const {
     return cur->isEnd;
 }
 
-std::vector<std::string> Trie::autocomplete(const std::string& /*prefix*/) const {
-    return {};
+std::vector<std::string> Trie::autocomplete(const std::string& prefix) const {
+    Node* cur = root;
+    for (char c : prefix) {
+        if (c < 'a' || c > 'z') return {};
+        cur = cur->children[c - 'a'];
+        if (!cur) return {};
+    }
+
+    std::vector<std::string> out;
+    std::string word = prefix;
+    collect(cur, word, out);
+    std::sort(out.begin(), out.end());   // contract: sorted ascending
+    return out;
 }
 
 std::size_t Trie::estimatedMemoryBytes() const {
     return 0;
 }
 
-void Trie::collect(Node* /*n*/, std::string& /*cur*/, std::vector<std::string>& /*out*/) const {}
+// DFS below n; cur holds the letters on the path from the root to n.
+void Trie::collect(Node* n, std::string& cur, std::vector<std::string>& out) const {
+    if (n->isEnd) out.push_back(cur);
+    for (int i = 0; i < 26; ++i) {
+        if (!n->children[i]) continue;
+        cur.push_back(static_cast<char>('a' + i));
+        collect(n->children[i], cur, out);
+        cur.pop_back();
+    }
+}
