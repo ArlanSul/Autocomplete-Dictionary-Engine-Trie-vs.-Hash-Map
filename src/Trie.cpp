@@ -33,8 +33,14 @@ void Trie::insert(const std::string& word) {
     cur->isEnd = true;
 }
 
-bool Trie::contains(const std::string& /*word*/) const {
-    return false;
+bool Trie::contains(const std::string& word) const {
+    const Node* cur = root;
+    for (char c : word) {
+        if (c < 'a' || c > 'z') return false;
+        cur = cur->children[c - 'a'];
+        if (!cur) return false;
+    }
+    return cur->isEnd;
 }
 
 std::vector<std::string> Trie::autocomplete(const std::string& /*prefix*/) const {
