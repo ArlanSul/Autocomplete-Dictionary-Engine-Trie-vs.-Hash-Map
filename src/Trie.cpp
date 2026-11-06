@@ -60,7 +60,7 @@ std::vector<std::string> Trie::autocomplete(const std::string& prefix) const {
 }
 
 std::size_t Trie::estimatedMemoryBytes() const {
-    return 0;
+    return nodeCount * sizeof(Node);
 }
 
 // DFS below n; cur holds the letters on the path from the root to n.
