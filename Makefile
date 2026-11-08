@@ -20,4 +20,7 @@ test: $(TARGET)
 clean:
 	rm -f src/*.o $(TARGET)
 
+bench: $(TARGET)
+	./$(TARGET) --benchmark
+
 .PHONY: all test clean
