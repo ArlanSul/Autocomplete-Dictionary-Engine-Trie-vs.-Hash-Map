@@ -1,101 +1,70 @@
 #include "Benchmark.h"
 #include "Loader.h"
-#include <iostream>
-#include <fstream>
 #include <chrono>
-#include <numeric>
+#include <fstream>
+#include <stdexcept>
 #include <vector>
-#include <string>
 
-BenchmarkMetrics runBenchmark(Dictionary& dict, const std::string& datasetPath) {
-    BenchmarkMetrics m;
-    m.engineName = dict.name();
+std::vector<BenchmarkRow> runBenchmark(
+    Dictionary& dict,
+    const std::string& datasetPath) {
+    const auto buildStart = std::chrono::steady_clock::now();
+    const std::size_t wordCount = loadDictionary(dict, datasetPath);
+    const auto buildEnd = std::chrono::steady_clock::now();
+    const double buildTimeMs =
+        std::chrono::duration<double, std::milli>(buildEnd - buildStart).count();
+    const std::size_t memoryBytes = dict.estimatedMemoryBytes();
 
-    auto startLoad = std::chrono::high_resolution_clock::now();
-    m.wordCount = loadDictionary(dict, datasetPath);
-
-
-    auto endLoad = std::chrono::high_resolution_clock::now();
-    m.loadTimeMs = std::chrono::duration<double, std::milli>(endLoad - startLoad).count();
-
-
-
-    std::vector<std::string> hitWords = {"apple", "banana", "programming", "structure", "system", "algorithm", "dictionary"};
-    const int searchIterations = 10000;
-    
-
-
-    auto startHit = std::chrono::high_resolution_clock::now();
-
-    for (int i = 0; i < searchIterations; ++i) {
-        for (const auto& w : hitWords) {
-            volatile bool res = dict.contains(w);
-            (void)res;
-        }
-    }
-
-    auto endHit = std::chrono::high_resolution_clock::now();
-    m.searchHitAvgNs = std::chrono::duration<double, std::nano>(endHit - startHit).count() / (searchIterations * hitWords.size());
-
-
-
-    std::vector<std::string> missWords = {"xyzqwe", "aaplzz", "nonexistentword123", "randomstr987", "qqwwrtty"};
-    auto startMiss = std::chrono::high_resolution_clock::now();
-
-    for (int i = 0; i < searchIterations; ++i) {
-        for (const auto& w : missWords) {
-            volatile bool res = dict.contains(w);
-            (void)res;
-        }
-    }
-
-    auto endMiss = std::chrono::high_resolution_clock::now();
-    m.searchMissAvgNs = std::chrono::duration<double, std::nano>(endMiss - startMiss).count() / (searchIterations * missWords.size());
-
-
-
-    const int autoIterations = 1000;
-    auto benchPrefixes = [&](const std::vector<std::string>& prefixes) -> double {
-        auto t0 = std::chrono::high_resolution_clock::now();
-
-        for (int i = 0; i < autoIterations; ++i) {
-            for (const auto& p : prefixes) {
-                auto res = dict.autocomplete(p);
-                (void)res;
-            }
-        }
-
-        auto t1 = std::chrono::high_resolution_clock::now();
-        return std::chrono::duration<double, std::micro>(t1 - t0).count() / (autoIterations * prefixes.size());
+    const std::vector<std::string> prefixes = {
+        "a", "app", "band", "cat", "progr", "comput",
+        "diction", "struc", "zzzz"
     };
+    constexpr int iterations = 100;
+    std::vector<BenchmarkRow> results;
+    results.reserve(prefixes.size());
 
-    m.autocompleteShortAvgUs = benchPrefixes({"a", "b", "th", "pr"});
-    m.autocompleteMedAvgUs   = benchPrefixes({"app", "prog", "comp", "syst"});
-    m.autocompleteLongAvgUs  = benchPrefixes({"progr", "comput", "diction", "struc"});
+    for (const std::string& prefix : prefixes) {
+        const std::vector<std::string> matches = dict.autocomplete(prefix);
+        const auto searchStart = std::chrono::steady_clock::now();
+        for (int i = 0; i < iterations; ++i) {
+            volatile std::size_t resultCount = dict.autocomplete(prefix).size();
+            (void)resultCount;
+        }
+        const auto searchEnd = std::chrono::steady_clock::now();
+        const double totalMicroseconds =
+            std::chrono::duration<double, std::micro>(searchEnd - searchStart).count();
 
+        results.push_back({
+            dict.name(),
+            prefix,
+            matches.size(),
+            totalMicroseconds / iterations,
+            buildTimeMs,
+            memoryBytes
+        });
+    }
 
-    
-    m.memoryBytes = dict.estimatedMemoryBytes();
-
-    return m;
+    if (wordCount == 0) {
+        throw std::runtime_error("The dictionary dataset contains no words");
+    }
+    return results;
 }
 
-void writeBenchmarkCsv(const std::vector<BenchmarkMetrics>& results, const std::string& outputPath) {
+void writeBenchmarkCsv(
+    const std::vector<BenchmarkRow>& results,
+    const std::string& outputPath) {
     std::ofstream out(outputPath);
-    if (!out.is_open()) return;
+    if (!out.is_open()) {
+        throw std::runtime_error("Could not open benchmark output: " + outputPath);
+    }
 
-    out << "Engine,WordsLoaded,LoadTimeMs,SearchHitNs,SearchMissNs,AutoShortUs,AutoMedUs,AutoLongUs,MemoryBytes,MemoryMB\n";
-    for (const auto& r : results) {
-        double mb = static_cast<double>(r.memoryBytes) / (1024.0 * 1024.0);
-        out << r.engineName << ","
-            << r.wordCount << ","
-            << r.loadTimeMs << ","
-            << r.searchHitAvgNs << ","
-            << r.searchMissAvgNs << ","
-            << r.autocompleteShortAvgUs << ","
-            << r.autocompleteMedAvgUs << ","
-            << r.autocompleteLongAvgUs << ","
-            << r.memoryBytes << ","
-            << mb << "\n";
+    out << "Structure,Prefix,Matches,SearchTimeUs,BuildTimeMs,EstimatedMemoryBytes\n";
+    for (const BenchmarkRow& row : results) {
+        out << row.structure << ','
+            << row.prefix << ','
+            << row.matches << ','
+            << row.searchTimeUs << ','
+            << row.buildTimeMs << ','
+            << row.estimatedMemoryBytes << '\n';
     }
 }

@@ -4,6 +4,7 @@ CXXFLAGS = -std=c++20 -Wall -Wextra -Iinclude
 SRC = $(wildcard src/*.cpp)
 OBJ = $(SRC:.cpp=.o)
 TARGET = autocomplete
+TEST_TARGET = correctness_test
 
 all: $(TARGET)
 
@@ -13,12 +14,16 @@ $(TARGET): $(OBJ)
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-test: $(TARGET)
-	@echo "Running tests..."
-	./$(TARGET)
+test: correctness
+
+correctness: $(TEST_TARGET)
+	./$(TEST_TARGET)
+
+$(TEST_TARGET): tests/test_correctness.cpp src/Trie.cpp src/HashMapDict.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $^
 
 clean:
-	rm -f src/*.o $(TARGET)
+	rm -f src/*.o $(TARGET) $(TEST_TARGET)
 
 bench: $(TARGET)
 	./$(TARGET) --benchmark
